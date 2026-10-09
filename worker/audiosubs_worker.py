@@ -555,7 +555,7 @@ def diagnostics():
     print(json.dumps({"type": "diagnostics", "python": sys.version,
                       "pyav": av.__version__, "ctranslate2": ctranslate2.__version__,
                       "decoders": codecs, "containers": containers,
-                      "audioExtensions": [".mp3", ".m4a", ".m4b", ".wav", ".flac", ".ogg", ".opus"],
+                      "audioExtensions": [".mp3", ".m4a", ".m4b", ".wav", ".flac", ".ogg", ".aac"],
                       "cudaDevices": ctranslate2.get_cuda_device_count()},
                      ensure_ascii=False), flush=True)
 

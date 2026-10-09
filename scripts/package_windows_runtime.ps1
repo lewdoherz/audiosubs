@@ -5,6 +5,9 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Worker = Join-Path $Root 'worker'
 $Python = Join-Path $Worker '.venv\Scripts\python.exe'
 if (-not (Test-Path $Python)) { throw 'Run scripts/setup_windows_runtime.ps1 first.' }
+# Never freeze stock PyAV's GPL FFmpeg wheel or an unproven DLL replacement.
+& $Python (Join-Path $PSScriptRoot 'lgpl_pyav.py') verify
+if ($LASTEXITCODE -ne 0) { throw 'Refusing to package an unverified/non-LGPL runtime. Run scripts/build_lgpl_pyav.ps1.' }
 $Arguments = @(
     '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--console',
     '--name', 'audiosubs_worker',
@@ -29,5 +32,14 @@ $Arguments = @(
 if ($LASTEXITCODE -ne 0) { throw 'Headless runtime packaging failed.' }
 $Executable = Join-Path $Worker 'runtime\audiosubs_worker\audiosubs_worker.exe'
 if (-not (Test-Path $Executable)) { throw 'PyInstaller did not produce the expected executable.' }
+$Bundle = Split-Path -Parent $Executable
+# pip can compile metadata licence generators (for example PyAV AUTHORS.py).
+# Their cached bytecode is build output, not a required runtime or notice.
+Get-ChildItem -Path $Bundle -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force
+# NVIDIA's optional cuDNN front-loader is not redistributed by AudioSubs.
+# GPU mode requires the user's own NVIDIA CUDA 12/cuDNN 9 installation.
+Get-ChildItem -Path $Bundle -Recurse -File -Filter 'cudnn64_9.dll' | Remove-Item -Force
+& $Python (Join-Path $PSScriptRoot 'lgpl_pyav.py') verify --bundle $Bundle
+if ($LASTEXITCODE -ne 0) { throw 'Frozen runtime contains unapproved FFmpeg/PyAV binaries; do not release it.' }
 Write-Host "Portable helper: $Executable"
 Write-Host 'Flutter CMake installs the complete onedir bundle as transcription_runtime next to AudioSubs.exe.'

@@ -2,6 +2,21 @@
 
 A single Flutter application for Windows and Android: import audiobooks, play audio immediately, read synchronized subtitles, and generate missing subtitles locally from the same UI. The original Player and Transcriber projects are reference implementations only; neither is required at runtime.
 
+## Install the preview release
+
+[AudioSubs v2.0.0 downloads](https://github.com/lewdoherz/audiosubs/releases/tag/v2.0.0):
+
+- **Windows installer:** `AudioSubs-2.0.0-windows-x64-setup.exe`. Installs for the current user under `%LOCALAPPDATA%\Programs\AudioSubs`, adds Start menu shortcuts, and optionally adds a desktop shortcut. Close AudioSubs before upgrading or uninstalling.
+- **Windows portable ZIP:** `AudioSubs-2.0.0-windows-x64-portable.zip`. Extract the whole archive and run `AudioSubs\AudioSubs.exe`; moving the exe alone will not work. This is a **no-install application bundle**, not portable user data: library/settings/models still use the Windows application support directory.
+- **Android APK:** `AudioSubs-2.0.0-android-arm64-x86_64.apk`. Requires Android 7/API 24 or later and a 64-bit ARM or x86 device. Download and open the APK, granting installation permission to your chosen browser/file manager when Android asks.
+- **Integrity:** compare downloaded files against `SHA256SUMS.txt` with `Get-FileHash -Algorithm SHA256` on Windows. The release also contains dependency notices and corresponding source for its LGPL media libraries.
+
+The Windows binaries are **unsigned** and can trigger SmartScreen warnings. The Android APK is **debug-key signed**, not production/store signed; an existing installation with a different signing key cannot be upgraded in place. Do not uninstall an existing Android player until you have exported its state and saved any app-private audio/subtitles you need. This preview was exercised on Windows and an Android x86_64 emulator, not a physical ARM64 phone.
+
+Python, the internal transcription worker and native libraries are included in both Windows downloads. Models are **not included**: download them explicitly from the transcription page, then generate subtitles offline. Windows uninstall removes application payload files, not your library/settings/models or imported media; Android uninstall/clear-data removes app-private data.
+
+Windows asks for acceptance of the bundled **Intel/Microsoft component terms** before first use, and again if their text changes. Full vendor terms and notices are included in the package. These terms do not turn AudioSubs into a GPL application or prohibit replacing/relinking its LGPL FFmpeg libraries. CUDA/cuDNN are not redistributed; Windows GPU use requires your own compatible NVIDIA installation.
+
 ## Library and playback
 
 - Import one file, several files, or a folder. Numbered siblings and natural sorting, covers, rename/remove, chapter navigation, resume positions, settings, speed, seeking, and auto-advance are retained from the player.
@@ -118,7 +133,7 @@ Use **Import player state** in the library toolbar to merge an existing `player_
 ### Prerequisites
 
 - Flutter/Dart compatible with `pubspec.yaml`; this workstation used Flutter 3.47.2 and Dart 3.13.2.
-- Windows: Visual Studio C++ desktop tools and Windows x64 Python **3.11 or 3.12** for building the private worker. Python 3.14 is not the supported wheel environment. End users of the packaged Windows folder do not need Python installed.
+- Windows: Visual Studio C++ desktop tools and Windows x64 Python **3.12** for building the private worker. Python 3.14 is not the supported wheel environment. End users of either Windows package do not need Python installed. The runtime build provisions portable MSYS2 tools locally to compile an LGPL-only FFmpeg and PyAV; no WSL or administrator installation is required.
 - Android: SDK platform 37, Flutter's configured NDK, CMake 3.22.1, compatible Android Studio JDK/Gradle, Git and accepted SDK licences. First native build fetches the pinned whisper.cpp source. Runtime minimum is API 24; packaged ABIs are arm64-v8a and x86_64, not 32-bit ARM.
 - Initial dependency/tool/model downloads need internet. Models are downloaded explicitly in the app, not silently during inference.
 
@@ -130,7 +145,7 @@ powershell -ExecutionPolicy Bypass -File scripts/setup_windows_runtime.ps1
 flutter run -d windows
 ```
 
-The setup script creates `worker/.venv`, provisions Python 3.12 with Python Install Manager when available, installs dependencies, and packages the headless helper. If needed, pass `-PythonPath C:\path\to\python.exe`. `-SourceOnly` skips PyInstaller for source/debug iteration.
+The setup script creates `worker/.venv`, provisions Python 3.12 with Python Install Manager when available, installs dependencies, and packages the headless helper. If needed, pass `-PythonPath C:\path\to\python.exe`. `-SourceOnly` skips PyInstaller; launching the Windows UI still requires a previously packaged complete runtime and its bundled terms.
 
 Build Windows:
 
@@ -139,6 +154,14 @@ powershell -ExecutionPolicy Bypass -File scripts/build_windows.ps1
 ```
 
 Run `build\windows\x64\runner\Release\AudioSubs.exe`. Distribute the **entire Release folder**, including DLLs, Flutter assets and `transcription_runtime`; the exe alone is not a working distribution. CMake requires the packaged runtime for release/profile builds.
+
+Package a Windows installer and portable ZIP after building:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -NsisCompilerPath C:\tools\nsis\makensis.exe
+```
+
+Use the open-source [NSIS 3.x compiler](https://nsis.sourceforge.io/Download). Both packages share the same staged payload and are written under `dist/<version>/`. Packaging does not download speech models or include imported audio, generated subtitles, test fixtures or player state. Silent installation uses `setup.exe /S /D=C:\path with spaces` (`/D` last and its value unquoted); silent uninstall uses `uninstall.exe /S`.
 
 Build/install Android:
 
@@ -160,11 +183,14 @@ worker\.venv\Scripts\python.exe -m unittest discover -s worker -p test_*.py
 
 ## Verification performed
 
-- Formatting and Flutter analysis passed with no issues; 18 Flutter tests passed, including all 9 existing player tests and new matching, discovery/fallback, migration and job-lifecycle coverage.
+- Formatting and Flutter analysis passed with no issues; 21 Flutter tests passed, including all 9 existing player tests, matching/discovery/fallback/migration/job-lifecycle coverage, and first-use consent/error boundaries.
 - 11 worker tests passed, including safe output publication, batch recovery, cancellation, open-stdin completion and separation of native/Python diagnostics from the JSON protocol.
 - Final normal-entry Windows release and Android arm64/x86_64 release APK builds passed and both applications launched. Windows reused the existing library without manual migration. Final APK metadata advertises only arm64-v8a and x86_64.
 - Windows actual UI: playback before subtitles, integrated model download/transcription, original + Spanish + bilingual output, live subtitle refresh and simultaneous original/Spanish display.
 - Packaged Windows runtime: all seven transcription encodings produced 21 original/Spanish/bilingual outputs offline; a missing file did not stop later files. Real native-job cancellation preserved completed output and removed incomplete files. Live stdin remained open throughout batch completion.
+- Windows release packaging: installer and extracted portable payload hashes matched all 1,001 staged files. Both applications reached their visible first frame and closed normally with only Windows/system directories on `PATH`; the extracted portable worker produced the same seven-format/21-output offline results without system Python.
+- Per-user installation into a path containing spaces, upgrade, HKCU registration/Start menu shortcuts and uninstall passed. A user-added sentinel survived upgrade/uninstall, and the existing schema-2 library remained byte-for-byte unchanged across both distribution launches and the installation lifecycle.
+- Actual first-use agreement/acceptance controls persisted the exact terms fingerprint. The native installer's licence page displayed the complete Intel/Microsoft terms and an explicit agreement button.
 - Android **API 35 x86_64 emulator**: all seven playback encodings advanced position; all seven transcription encodings produced timed originals offline. German speech produced detected-German originals, separate English speech-translation cues and a bilingual output. Bad-file recovery, cancellation, preservation of existing outputs and removal of partials passed.
 - Android actual UI: native model download, progress/errors/output locations, generated-subtitle refresh without restart, generated-track selection and simultaneous two-track display. Standard physical-storage-provider single and multiple URI imports worked with all-files access denied; the resolver preserved filenames under persistent private `files/picked/` storage. The imported library remained readable after process restart.
 - ARM64 native code compiled, but **no physical ARM64 Android device** was available for runtime verification. CUDA, sustained full-length-book performance, other document providers, background survival and production signing/store publication were not validated.
@@ -185,6 +211,8 @@ Backend/model licensing and format references:
 - [whisper.cpp v1.8.3](https://github.com/ggml-org/whisper.cpp/tree/v1.8.3), MIT; its licence is included in Android assets. [GGML model catalogue and published checksums](https://github.com/ggml-org/whisper.cpp/blob/v1.8.3/models/README.md).
 - [OpenAI Whisper licence](https://github.com/openai/whisper/blob/main/LICENSE), MIT code/model weights.
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [CTranslate2](https://github.com/OpenNMT/CTranslate2), and [Argos Translate](https://github.com/argosopentech/argos-translate). Review dependency and individual translation-package licences before redistributing models; the Windows bundle also includes PyAV/FFmpeg dependencies.
+- Windows uses locally rebuilt **PyAV 19.0.1+audiosubs.lgpl** with **FFmpeg 9.0.2, LGPL 2.1 or later**, dynamically linked. GPL/nonfree, external-library autodetection and FFmpeg network support are disabled. `scripts/build_lgpl_pyav.ps1` records verified source hashes, configuration and DLL provenance; packaging refuses the stock GPL FFmpeg wheel.
+- Full component notices are under `transcription_runtime/_internal/THIRD-PARTY-LICENSES`. The release's `AudioSubs-2.0.0-ffmpeg-lgpl-source.zip` includes original FFmpeg/PyAV sources, local changes, configuration and rebuild/relink instructions. ABI-compatible FFmpeg DLLs can be replaced under `transcription_runtime/_internal/av/` while AudioSubs is closed. See [FFmpeg licensing guidance](https://ffmpeg.org/legal.html); these notices are not a legal-compliance certification.
 - [Android platform media formats](https://developer.android.com/media/platform/supported-formats) and [Windows Media Foundation formats](https://learn.microsoft.com/en-us/windows/win32/medfound/supported-media-formats-in-media-foundation).
 
 The reference projects remain separate and unchanged. Built applications and downloaded models are excluded from source control.

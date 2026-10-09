@@ -13,9 +13,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'subtitle_files.dart';
 import 'transcription/jobs.dart';
 import 'transcription/screen.dart';
+import 'windows_terms.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isWindows && !await requestWindowsTermsAcceptance()) return;
   await loadAppState();
   try {
     await transcriptionJobs.loadHistory();
