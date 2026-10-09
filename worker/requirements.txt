@@ -1,0 +1,4 @@
+# Windows x64 Python 3.11/3.12; no UI toolkit or external FFmpeg executable.
+faster-whisper>=1.2.1,<2
+argostranslate>=1.9.6,<2
+pyinstaller>=6.16,<7
