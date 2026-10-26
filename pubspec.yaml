@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.0.0+6
+version: 2.1.0+7
 
 environment:
   sdk: ^3.13.2
@@ -40,6 +40,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   permission_handler: ^13.0.2
+  archive: ^4.5.2
+  html: ^0.15.7
+  xml: ^7.1.0
+  pdfrx: ^2.10.1
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +68,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/pdfium-NOTICES.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -60,6 +60,11 @@ foreach ($RelativePath in @(
         throw "Incomplete Windows Release bundle: missing $RelativePath. Run scripts/build_windows.ps1 first."
     }
 }
+$NoticeManifest = Get-Content -LiteralPath (Join-Path $Bundle 'transcription_runtime\_internal\THIRD-PARTY-LICENSES\manifest.json') -Raw | ConvertFrom-Json
+if ($NoticeManifest.application.version -ne $Version -or
+    -not ($NoticeManifest.components | Where-Object { $_.name -eq 'PDFium-native' })) {
+    throw 'Release notices are stale or omit native PDFium. Rebuild the managed runtime and regenerate notices for this version before packaging.'
+}
 $FlutterAssets = Join-Path $Bundle 'data\flutter_assets'
 if (-not (Test-Path -LiteralPath $FlutterAssets -PathType Container) -or
     -not (Get-ChildItem -LiteralPath $FlutterAssets -File -Recurse -Force | Select-Object -First 1)) {

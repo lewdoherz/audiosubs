@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:android_file_picker/android_file_picker.dart';
@@ -11,12 +12,18 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'subtitle_files.dart';
+import 'proofreading/screen.dart';
 import 'transcription/jobs.dart';
 import 'transcription/screen.dart';
 import 'windows_terms.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'PDFium (chromium/7811) and incorporated software',
+    ], await rootBundle.loadString('assets/pdfium-NOTICES.txt'));
+  });
   if (Platform.isWindows && !await requestWindowsTermsAcceptance()) return;
   await loadAppState();
   try {
@@ -407,6 +414,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
       appBar: AppBar(
         title: const Text('Library'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.fact_check),
+            tooltip: 'Check SRT against ebook',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    ProofreadingScreen(resolvePath: _resolvedPathFor),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.auto_awesome),
             tooltip: 'Transcription jobs / batch',
@@ -1369,6 +1387,30 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  Future<void> _proofreadSubtitles() async {
+    final audio = _currentFilePath;
+    if (audio == null) return;
+    final available = await discoverSubtitleFiles(audio);
+    if (!mounted || _currentFilePath != audio) return;
+    final selected = widget.audiobook.primarySubtitles[audio];
+    final initial = selected != null && selected.isNotEmpty
+        ? selected
+        : available.firstOrNull?.path;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProofreadingScreen(
+          resolvePath: _resolvedPathFor,
+          audioPath: audio,
+          initialSubtitlePath: initial,
+        ),
+      ),
+    );
+    if (mounted && _currentFilePath == audio) {
+      await _loadSubtitlesForAudio(audio);
+    }
+  }
+
   /// Discover sibling and app-owned generated tracks without restarting playback.
   Future<void> _loadSubtitlesForAudio(String audioFilePath) async {
     final available = await discoverSubtitleFiles(audioFilePath);
@@ -1658,6 +1700,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                     (path) => path != _currentFilePath,
                   ),
                 ]),
+              ),
+              IconButton(
+                icon: const Icon(Icons.fact_check),
+                tooltip: 'Check SRT against ebook',
+                onPressed: _proofreadSubtitles,
               ),
               IconButton(
                 icon: const Icon(Icons.settings),

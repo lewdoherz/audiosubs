@@ -4,7 +4,7 @@
 Invoke with managed Python after PyInstaller and LGPL provenance validation.
 Python dependencies: standard library only. Exact source archives and generated
 build inputs are taken from the LGPL builder provenance. No model weights are
-fetched. Download caches and temporary notice trees are under worker/build.
+fetched. Download caches and temporary notice trees are under .dart_tool/dependency-notices.
 A failed run never replaces the existing notice directory. This is not a compliance opinion
 and does not grant or change the AudioSubs application license.
 """
@@ -109,7 +109,7 @@ class Collector:
         target = self.cache / 'downloads' / hashlib.sha256(url.encode()).hexdigest()
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.is_file():
-            request = urllib.request.Request(url, headers={'User-Agent': 'AudioSubs-notice-collector/2.0.0'})
+            request = urllib.request.Request(url, headers={'User-Agent': 'AudioSubs-notice-collector/2.1.0'})
             try:
                 with urllib.request.urlopen(request, timeout=120) as response:
                     data = response.read()
@@ -456,6 +456,32 @@ def collect_flutter(c):
         c.save(component, 'pubspec.yaml', pubspec.encode(), 'resolved Dart package metadata')
         c.local_notices(component, root)
         require(any(not n['path'].endswith('pubspec.yaml') for n in component['notices']), f'Dart package license text missing: {name}')
+    if 'pdfium_dart' in selected:
+        hook = packages['pdfium_dart'] / 'hook/build.dart'
+        release = re.search(r"const _pdfiumRelease = '([^']+)'", hook.read_text(encoding='utf-8'))
+        require(release and release[1] == 'chromium%2F7811',
+                'PDFium release changed; refresh bundled Windows/Android native notices before packaging')
+        notice = ROOT / 'assets/pdfium-NOTICES.txt'
+        require(notice.is_file(), 'Native PDFium redistribution notices missing')
+        notice_text = notice.read_text(encoding='utf-8')
+        required_notices = [
+            'LICENSE', 'licenses/abseil.txt', 'licenses/agg23.txt',
+            'licenses/fast_float.txt', 'licenses/freetype.txt', 'licenses/icu.txt',
+            'licenses/lcms.txt', 'licenses/libjpeg_turbo.ijg', 'licenses/libjpeg_turbo.md',
+            'licenses/libopenjpeg.txt', 'licenses/libpng.txt', 'licenses/libtiff.txt',
+            'licenses/llvm-libc.txt', 'licenses/pdfium.txt', 'licenses/simdutf.txt',
+            'licenses/zlib.txt', 'licenses/catapult.txt', 'licenses/cpu_features.txt',
+            'licenses/libunwind.txt',
+        ]
+        require(all('===== ' + name in notice_text for name in required_notices)
+                and 'The FreeType Project LICENSE' in notice_text
+                and '[Cannot read' not in notice_text,
+                'Native PDFium notice bundle is incomplete or contains reader placeholders')
+        component = c.component('PDFium-native', 'chromium-7811',
+            ['https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F7811'],
+            kind='native-runtime', targets=['win-x64', 'android-arm64', 'android-x64'])
+        c.save(component, 'NOTICES.txt', notice.read_bytes(), 'pinned Windows/Android PDFium archive notices')
+        c.save(component, 'build.dart', hook.read_bytes(), 'resolved pdfium_dart native build provenance')
 
 
 
@@ -540,7 +566,7 @@ def collect_ffmpeg(c):
             path = Path(filename)
             require(path.is_file(), f'FFmpeg rebuild input missing: {filename}')
             add_zip(archive, 'ffmpeg-rebuild/' + path.name, path.read_bytes())
-        instructions = ('Corresponding sources for the LGPL FFmpeg shared libraries shipped by AudioSubs 2.0.0.\n'
+        instructions = ('Corresponding sources for the LGPL FFmpeg shared libraries shipped by AudioSubs 2.1.0.\n'
             'No license for AudioSubs itself is granted by this source archive.\n'
             'provenance.json records exact DLL hashes/configuration; pyav/local-changes.json records the PyAV modifications.\n'
             'SOURCES.json records the original source URL, revision and SHA256.\n'
@@ -579,9 +605,9 @@ def main():
     parser.add_argument('--venv', type=Path, default=ROOT / 'worker/.venv')
     parser.add_argument('--provenance', type=Path, default=ROOT / 'worker/build/lgpl/provenance.json')
     parser.add_argument('--pyinstaller-work', type=Path, default=ROOT / 'worker/build/audiosubs_worker')
-    parser.add_argument('--cache', type=Path, default=ROOT / 'worker/build/dependency-notices')
+    parser.add_argument('--cache', type=Path, default=ROOT / '.dart_tool/dependency-notices')
     parser.add_argument('--output', type=Path, help='Defaults to runtime/_internal/THIRD-PARTY-LICENSES')
-    parser.add_argument('--source-zip', type=Path, default=ROOT / 'dist/2.0.0/AudioSubs-2.0.0-ffmpeg-lgpl-source.zip')
+    parser.add_argument('--source-zip', type=Path, default=ROOT / 'dist/2.1.0/AudioSubs-2.1.0-ffmpeg-lgpl-source.zip')
     parser.add_argument('--release-source-url', required=True, help='Public URL at which the corresponding-source ZIP will be published')
     args = parser.parse_args()
     args.runtime = args.runtime.resolve()
@@ -598,7 +624,7 @@ def main():
         collect_native(c)
         collect_flutter(c)
         collect_ffmpeg(c)
-        manifest = {'schema': 1, 'application': {'name': 'AudioSubs', 'version': '2.0.0',
+        manifest = {'schema': 1, 'application': {'name': 'AudioSubs', 'version': '2.1.0',
             'license': 'No application LICENSE was supplied; these notices do not grant an application license.'},
             'scope': 'Frozen Python module/data inventory, native runtime dependencies, Flutter engine and Dart runtime dependency graph. Development-only distributions are excluded.',
             'components': sorted(c.components, key=lambda v: (v['name'].lower(), v['version'])),
@@ -606,7 +632,7 @@ def main():
             'unresolved_terms': sorted(set(c.unresolved)),
             'legal_compliance': 'Not determined by this collection tool.'}
         (c.output / 'manifest.json').write_bytes(json_bytes(manifest))
-        lines = ['AudioSubs 2.0.0 - third-party notices', '', manifest['application']['license'], '', manifest['scope'], '']
+        lines = ['AudioSubs 2.1.0 - third-party notices', '', manifest['application']['license'], '', manifest['scope'], '']
         for component in manifest['components']:
             lines.append(component['name'] + ' ' + component['version'])
             lines.extend('  Source: ' + url for url in component['source_urls'])

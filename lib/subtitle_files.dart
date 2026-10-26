@@ -16,7 +16,11 @@ class SubtitleFile {
   final String kind;
   final String language;
   const SubtitleFile(this.path, this.kind, this.language);
-  String get label => kind == 'original' ? 'Original' : '$kind ($language)';
+  String get label => switch (kind) {
+    'original' => 'Original',
+    'corrected' => 'Corrected ($language)',
+    _ => '$kind ($language)',
+  };
 }
 
 /// Only exact stems and language suffixes match; chapter1 must not match chapter10.
@@ -25,6 +29,19 @@ SubtitleFile? matchingSubtitle(String audio, String candidate) {
   final stem = audioStem(audio).toLowerCase();
   if (name == '$stem.srt') {
     return SubtitleFile(candidate, 'original', 'original');
+  }
+  final corrected = RegExp(r'^(.*)\.corrected-([1-9]\d*)\.srt$')
+      .firstMatch(name);
+  if (corrected != null) {
+    final original = matchingSubtitle(audio, '${corrected.group(1)}.srt');
+    if (original != null && original.kind != 'corrected') {
+      return SubtitleFile(
+        candidate,
+        'corrected',
+        '${original.language}, copy ${corrected.group(2)}',
+      );
+    }
+    return null;
   }
   if (!name.startsWith('$stem.') || !name.endsWith('.srt')) return null;
   final suffix = name.substring(stem.length + 1, name.length - 4);
@@ -64,7 +81,7 @@ Future<List<SubtitleFile>> discoverSubtitleFiles(
       // SAF/provider imports can have no readable sibling directory.
     }
   }
-  const rank = {'original': 0, 'translated': 1, 'bilingual': 2};
+  const rank = {'original': 0, 'translated': 1, 'bilingual': 2, 'corrected': 3};
   found.sort((a, b) {
     final order = rank[a.kind]!.compareTo(rank[b.kind]!);
     return order != 0

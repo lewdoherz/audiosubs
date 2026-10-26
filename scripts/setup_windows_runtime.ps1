@@ -54,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Worker dependency installation failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution replaced or altered the LGPL runtime.' }
 if (-not $SourceOnly) {
     & (Join-Path $PSScriptRoot 'package_windows_runtime.ps1')
-    & $Python (Join-Path $PSScriptRoot 'collect_dependency_notices.py') --release-source-url 'https://github.com/lewdoherz/audiosubs/releases/download/v2.0.0/AudioSubs-2.0.0-ffmpeg-lgpl-source.zip'
+    & $Python (Join-Path $PSScriptRoot 'collect_dependency_notices.py') --release-source-url 'https://github.com/lewdoherz/audiosubs/releases/download/v2.1.0/AudioSubs-2.1.0-ffmpeg-lgpl-source.zip'
     if ($LASTEXITCODE -ne 0) { throw 'Third-party notice/source collection failed; do not distribute this runtime.' }
 }
 Write-Host 'Managed runtime ready. Models are downloaded explicitly from the AudioSubs UI, not by setup.'
